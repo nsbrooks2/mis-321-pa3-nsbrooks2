@@ -35,7 +35,9 @@ export default function App() {
     checkServerHealth();
   }, []);
 
-  const checkServerHealth = async (retries = 10) => {
+  const [healthCheckStatus, setHealthCheckStatus] = useState<'checking' | 'retrying' | 'failed'>('checking');
+
+  const checkServerHealth = async (retries = 20) => {
     try {
       const resp = await fetch('/api/health');
       if (resp.ok) {
@@ -48,7 +50,10 @@ export default function App() {
       throw new Error('Not ready');
     } catch (err) {
       if (retries > 0) {
-        setTimeout(() => checkServerHealth(retries - 1), 1500);
+        setHealthCheckStatus('retrying');
+        setTimeout(() => checkServerHealth(retries - 1), 2000);
+      } else {
+        setHealthCheckStatus('failed');
       }
     }
   };
@@ -143,8 +148,22 @@ export default function App() {
     return (
       <div className="h-screen bg-trail-bg flex flex-col items-center justify-center p-8 text-center">
          <Mountain className="w-12 h-12 text-trail-moss animate-pulse mb-4" />
-         <h2 className="text-xl font-bold text-white tracking-widest uppercase opacity-50">Syncing Intelligence...</h2>
-         <p className="text-[10px] text-trail-moss mt-4 opacity-30">Connecting to SummitScout basecamp servers...</p>
+         <h2 className="text-xl font-bold text-white tracking-widest uppercase opacity-50">
+           {healthCheckStatus === 'failed' ? 'Intelligence Offline' : 'Syncing Intelligence...'}
+         </h2>
+         <p className="text-[10px] text-trail-moss mt-4 opacity-30">
+           {healthCheckStatus === 'failed' 
+             ? 'Basecamp servers are unreachable. Please check your deployment logs.' 
+             : 'Connecting to SummitScout basecamp servers (establishing satellite link)...'}
+         </p>
+         {healthCheckStatus === 'failed' && (
+           <button 
+             onClick={() => window.location.reload()}
+             className="mt-6 text-white bg-white/5 px-6 py-2 rounded-full text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+           >
+             Retry Signal
+           </button>
+         )}
       </div>
     );
   }

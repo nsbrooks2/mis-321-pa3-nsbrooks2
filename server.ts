@@ -12,11 +12,19 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const trailsData = JSON.parse(fs.readFileSync(path.join(__dirname, "src/data/trails.json"), "utf-8"));
-
-async function startServer() {
+export async function createServer() {
   const app = express();
   const PORT = 3000;
+
+  const trailsPath = path.resolve(__dirname, "src/data/trails.json");
+  console.log(`[Server] Loading trails from: ${trailsPath}`);
+  let trailsData = [];
+  try {
+    trailsData = JSON.parse(fs.readFileSync(trailsPath, "utf-8"));
+    console.log(`[Server] Loaded ${trailsData.length} trails.`);
+  } catch (err) {
+    console.error(`[Server] FAILED to load trails:`, err);
+  }
 
   app.use(express.json());
 
@@ -54,7 +62,12 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", uptime: process.uptime() });
+    res.json({ 
+      status: "ok", 
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV
+    });
   });
 
   app.post("/api/chat", authenticate, async (req: any, res: any) => {
@@ -528,9 +541,15 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+// Start only if not on Vercel (where createServer is called by api/index.ts)
+if (!process.env.VERCEL) {
+  createServer().then(app => {
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  });
+}
