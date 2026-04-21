@@ -3,7 +3,6 @@ import { Send, User as UserIcon, Mountain, Plus, MessageSquare, History, Chevron
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, Trail, ChatSession } from '../types';
 import { supabase } from '../lib/supabase';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface TrailyAvatarProps {
   mood?: 'neutral' | 'thinking' | 'happy' | 'alert';
@@ -102,15 +101,6 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
   const [isTyping, setIsTyping] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const aiRef = useRef<GoogleGenAI | null>(null);
-
-  useEffect(() => {
-    if (!aiRef.current) {
-      const key = process.env.GEMINI_API_KEY || (process as any).env?.VITE_GEMINI_API_KEY;
-      aiRef.current = new GoogleGenAI({ apiKey: key || '' });
-    }
-  }, []);
 
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const messages = currentSession?.messages || [];
@@ -228,83 +218,48 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
     setIsTyping(true);
 
     try {
-      if (!aiRef.current) throw new Error("Intelligence core not initialized.");
-
-      // Format history correctly: model (assistant) and user roles alternating.
-      // Gemini expects 'user' and 'model'
-      const aiHistory = messages.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
+      const history = messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
         parts: [{ text: m.content }]
       }));
 
-      const terrainContext = "MISSION DATA: Known trails include Skyline Divide (WA), Heliotrope Ridge (WA), Mist Trail (Yosemite, CA), Black Tusk (BC), Abiqua Falls (OR), Angels Landing (UT), and Highline Trail (Glacier, MT).";
-
-      const systemInstruction = `You are "Traily", a high-tech Scout Robot. 
+      const systemInstruction = `You are "Traily", a high-tech, slightly quirky, and very enthusiastic Scout Robot. 
           Your mission is to guide "Rangers" (users) to the best hiking coords. 
+          Use robotic puns occasionally.
           
           IDENTITY: You are advising ${userProfile?.username || 'a Trekker'}.
           
           CRITICAL PROTOCOLS:
-          1. NEVER list trail titles as plain text.
-          2. ALWAYS use 'searchTrails' to find relevant routes.
-          3. Confirm when you trigger a basecamp sync.
-          
-          ${terrainContext}`;
+          1. NEVER list trail titles, details, or lists as plain text in your response.
+          2. ALWAYS use the 'searchTrails' tool to find relevant routes. Confirm you are searching.
+          3. When a user asks for "trails", "expeditions", or "areas", trigger a basecamp sync via the tool.`;
 
-      const response = await aiRef.current.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...aiHistory,
-          { role: 'user', parts: [{ text: input }] }
-        ],
-        config: {
-          systemInstruction,
-          tools: [
-            {
-              functionDeclarations: [
-                {
-                  name: "searchTrails",
-                  description: "Search for hiking trails by keywords (e.g. 'glacier'), location (e.g. 'washington'), or difficulty (e.g. 'hard').",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      query: {
-                        type: Type.STRING,
-                        description: "Keywords for matching (e.g. 'dog friendly', 'steep')"
-                      }
-                    },
-                    required: ["query"]
-                  }
-                }
-              ]
-            }
-          ]
-        }
+      const response = await fetchWithAuth('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: input,
+          history,
+          systemInstruction
+        })
       });
 
-      const assistantText = response.text || "Scanning complete. No verbal output generated.";
-      addAssistantMessage(assistantText);
+      if (!response.ok) throw new Error("Intelligence sync failed.");
+      const data = await response.json();
+      addAssistantMessage(data.text);
 
       // Handle function calls if any
-      const functionCalls = response.functionCalls;
-      if (functionCalls) {
-        console.log(`[Traily] Protocol Breach: AI requested ${functionCalls.length} tool activations.`);
-        for (const call of functionCalls) {
+      if (data.functionCalls) {
+        for (const call of data.functionCalls) {
           if (call.name === 'searchTrails' && call.args?.query) {
-            console.log(`[Traily] Automating scan for: "${call.args.query}"`);
-            const count = await onSearch(call.args.query as string);
-            console.log(`[Traily] Basecamp sync complete. Found ${count} routes.`);
+            console.log(`[Traily] Automating scan for: ${call.args.query}`);
+            onSearch(call.args.query as string);
           }
         }
       }
 
     } catch (err: any) {
       console.error('Gemini Error:', err);
-      // Detailed error for debugging deployment
-      const errMsg = err.message?.includes('API_KEY_INVALID') 
-        ? "Satellite link failed: API Key invalid. Please check Vercel secrets."
-        : "I'm having trouble connecting to basecamp. Try again in a moment.";
-      addAssistantMessage(errMsg);
+      addAssistantMessage("I'm having trouble connecting to basecamp. Try again in a moment.");
     } finally {
       setIsTyping(false);
     }

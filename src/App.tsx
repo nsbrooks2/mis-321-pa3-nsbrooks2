@@ -131,10 +131,6 @@ export default function App() {
     }
   };
 
-  const handleResetTrails = () => {
-    fetchTrails();
-  };
-
   const handleLogout = async () => {
     if (supabase) {
       await supabase.auth.signOut();
@@ -328,13 +324,7 @@ export default function App() {
                       className="flex-1 flex flex-col bg-trail-bg overflow-hidden relative"
                     >
                       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-wood.png')] opacity-10 pointer-events-none" />
-                      <DiscoveryDeck 
-                        trails={trails} 
-                        loading={loading} 
-                        user={user} 
-                        userProfile={userProfile} 
-                        onReset={handleResetTrails}
-                      />
+                      <DiscoveryDeck trails={trails} loading={loading} user={user} userProfile={userProfile} />
                     </motion.div>
                   )}
                 </AnimatePresence>

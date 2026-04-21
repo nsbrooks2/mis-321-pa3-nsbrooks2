@@ -6,12 +6,11 @@ import { Compass, Loader2 } from 'lucide-react';
 interface DiscoveryDeckProps {
   trails: Trail[];
   loading: boolean;
-  onReset?: () => void;
   user?: any;
   userProfile?: any;
 }
 
-export default function DiscoveryDeck({ trails, loading, onReset, user, userProfile }: DiscoveryDeckProps) {
+export default function DiscoveryDeck({ trails, loading, user, userProfile }: DiscoveryDeckProps) {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="p-12 pb-8 flex items-end justify-between z-10">
@@ -49,20 +48,9 @@ export default function DiscoveryDeck({ trails, loading, onReset, user, userProf
                   </motion.div>
                 ))
               ) : (
-                <div className="col-span-full h-96 flex flex-col items-center justify-center text-center p-8 glass-panel rounded-[40px] border border-white/5">
-                   <Compass className="w-16 h-16 text-trail-moss/20 mb-6 animate-pulse" />
-                   <p className="font-serif italic text-3xl text-white/40 mb-2">Sector Scan Returned Zero Results</p>
-                   <p className="text-white/20 text-xs uppercase tracking-widest leading-relaxed max-w-sm mb-8">
-                     Traily's current sensors may be too strictly tuned. Broaden your query in the intelligence panel.
-                   </p>
-                   {onReset && (
-                     <button 
-                       onClick={onReset}
-                       className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-trail-moss hover:bg-trail-moss hover:text-white transition-all shadow-2xl"
-                     >
-                       Reset Discovery Link
-                     </button>
-                   )}
+                <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-400">
+                   <p className="font-serif italic text-2xl">No trails found in the current sector.</p>
+                   <p className="text-sm mt-2">Try adjusting your search criteria.</p>
                 </div>
               )}
             </AnimatePresence>
