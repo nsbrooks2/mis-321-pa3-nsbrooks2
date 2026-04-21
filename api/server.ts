@@ -18,6 +18,8 @@ export async function createServer() {
   app.use(express.json());
 
   // Initialize Supabase (Backend Service Role)
+  console.log(`[Server] Bootstrapped with ${trailsData?.length || 0} trails in memory.`);
+
   function sanitizeSupabaseUrl(url: string | undefined): string {
     if (!url) return "";
     let sanitized = url.trim();
@@ -65,8 +67,10 @@ export async function createServer() {
   });
 
   app.post("/api/chat", authenticate, async (req: any, res: any) => {
-    const { history, message, systemInstruction } = req.body;
+    const { history, message, systemInstruction: userInstruction } = req.body;
     try {
+      const terrainContext = "MISSION DATA: Known trails include Skyline Divide (WA), Heliotrope Ridge (WA), Mist Trail (Yosemite, CA), Black Tusk (BC), Abiqua Falls (OR), Angels Landing (UT), and Highline Trail (Glacier, MT).";
+      
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
@@ -74,19 +78,19 @@ export async function createServer() {
           { role: 'user', parts: [{ text: message }] }
         ],
         config: {
-          systemInstruction: systemInstruction || "You are SummitScout, a rugged AI trail guide.",
+          systemInstruction: (userInstruction || "You are Traily, a helpful scout robot.") + "\n\n" + terrainContext,
           tools: [
             {
               functionDeclarations: [
                 {
                   name: "searchTrails",
-                  description: "Search for specific hiking trails by keywords, location, or difficulty.",
+                  description: "Search for specific hiking trails by keywords (e.g. 'glacier'), location (e.g. 'washington'), or difficulty (e.g. 'hard').",
                   parameters: {
                     type: Type.OBJECT,
                     properties: {
                       query: {
                         type: Type.STRING,
-                        description: "The search query (e.g., 'Pacific Northwest', 'hard', 'dog friendly')"
+                        description: "BROAD keywords for query (e.g. 'WA' instead of 'Washington state' for better matching)"
                       }
                     },
                     required: ["query"]
@@ -110,13 +114,20 @@ export async function createServer() {
 
   app.get("/api/trails", (req, res) => {
     const { q, difficulty, tags } = req.query;
+    
+    if (!trailsData || trailsData.length === 0) {
+      console.warn("[Server] trailsData is empty or missing.");
+    }
+
     let filtered = [...trailsData];
 
     if (q) {
       const query = (q as string).toLowerCase();
       filtered = filtered.filter(t => 
         t.name.toLowerCase().includes(query) || 
-        t.description.toLowerCase().includes(query)
+        t.description.toLowerCase().includes(query) ||
+        (t.location && t.location.toLowerCase().includes(query)) ||
+        (t.tags && t.tags.some((tag: string) => tag.toLowerCase().includes(query)))
       );
     }
 
@@ -129,6 +140,7 @@ export async function createServer() {
       filtered = filtered.filter(t => tagList.every(tag => t.tags.includes(tag)));
     }
 
+    console.log(`[Server] Search q="${q}" returned ${filtered.length} trails.`);
     res.json(filtered);
   });
 
