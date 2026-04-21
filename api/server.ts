@@ -4,19 +4,16 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Type } from "@google/genai";
-import dotenv from "dotenv";
-import trailsData from "../src/data/trails.json" assert { type: "json" };
+import { createRequire } from 'module';
 
-dotenv.config();
+const require = createRequire(import.meta.url);
+const trailsData = require('../src/data/trails.json');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function createServer() {
   const app = express();
-  const PORT = 3000;
-
-  // trailsData is now statically imported for correct Vercel bundling
 
   app.use(express.json());
 
@@ -546,33 +543,14 @@ export async function createServer() {
     });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-    try {
-      // Use eval + template string to completely hide this from Vercel's bundler/ncc
-      const v = await eval(`import("vite")`);
-      const vite = await v.createServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } catch (e) {
-      console.warn("Vite not found or failed to load, skipping dev server middleware.");
-    }
-  } else if (!process.env.VERCEL) {
-    // ONLY serve static files if running as a standalone Node server
-    // On Vercel, static files are handled by the platform via vercel.json rewrites
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+  // Note: Vite middleware has been removed from this file.
+  // Use dev-server.ts for local development.
+  // On Vercel, static files are handled by vercel.json rewrites.
 
   return app;
 }
 
-// Start only if not on Vercel (where createServer is called by api/index.ts)
+// Start only if not on Vercel
 if (!process.env.VERCEL) {
   createServer().then(app => {
     const PORT = 3000;
