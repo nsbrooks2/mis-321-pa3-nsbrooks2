@@ -231,8 +231,8 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
           
           CRITICAL PROTOCOLS:
           1. NEVER list trail titles, details, or lists as plain text in your response.
-          2. ALWAYS use your internal scouting tools (confirm you are searching trails).
-          3. If a user asks for "trails", "expeditions", or "posts", confirm you are syncing with basecamp.`;
+          2. ALWAYS use the 'searchTrails' tool to find relevant routes. Confirm you are searching.
+          3. When a user asks for "trails", "expeditions", or "areas", trigger a basecamp sync via the tool.`;
 
       const response = await fetchWithAuth('/api/chat', {
         method: 'POST',
@@ -246,6 +246,16 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
       if (!response.ok) throw new Error("Intelligence sync failed.");
       const data = await response.json();
       addAssistantMessage(data.text);
+
+      // Handle function calls if any
+      if (data.functionCalls) {
+        for (const call of data.functionCalls) {
+          if (call.name === 'searchTrails' && call.args?.query) {
+            console.log(`[Traily] Automating scan for: ${call.args.query}`);
+            onSearch(call.args.query as string);
+          }
+        }
+      }
 
     } catch (err: any) {
       console.error('Gemini Error:', err);

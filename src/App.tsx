@@ -116,12 +116,15 @@ export default function App() {
 
   const fetchTrails = async (query = '') => {
     setLoading(true);
+    console.log(`[Basecamp] Fetching trails for query: "${query}"`);
     try {
       const response = await fetchWithAuth(`/api/trails${query ? `?q=${encodeURIComponent(query)}` : ''}`);
       const data = await response.json();
+      console.log(`[Basecamp] Received ${data.length} trails.`);
       setTrails(data);
       return data.length;
     } catch (err) {
+      console.error(`[Basecamp] Trail Sync Error:`, err);
       return 0;
     } finally {
       setLoading(false);

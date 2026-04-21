@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -16,14 +16,22 @@ export async function createServer() {
   const PORT = 3000;
 
   const trailsPath = path.join(process.cwd(), "src", "data", "trails.json");
-  console.log(`[Server] Loading trails from: ${trailsPath}`);
+  const fallbackTrailsPath = path.join(__dirname, "..", "src", "data", "trails.json");
+  const localTrailsPath = path.join(__dirname, "data", "trails.json"); // For Vercel lambda structure if moved
+
+  console.log(`[Server] Searching trails at: ${trailsPath}`);
   let trailsData = [];
   try {
-    if (fs.existsSync(trailsPath)) {
-      trailsData = JSON.parse(fs.readFileSync(trailsPath, "utf-8"));
+    const finalPath = fs.existsSync(trailsPath) ? trailsPath : 
+                     fs.existsSync(fallbackTrailsPath) ? fallbackTrailsPath :
+                     fs.existsSync(localTrailsPath) ? localTrailsPath : null;
+
+    if (finalPath) {
+      console.log(`[Server] Found trails at: ${finalPath}`);
+      trailsData = JSON.parse(fs.readFileSync(finalPath, "utf-8"));
       console.log(`[Server] Loaded ${trailsData.length} trails.`);
     } else {
-      console.warn(`[Server] trails.json not found at ${trailsPath}, check Vercel build configuration.`);
+      console.warn(`[Server] trails.json NOT FOUND. checked: ${trailsPath}, ${fallbackTrailsPath}, ${localTrailsPath}`);
     }
   } catch (err) {
     console.error(`[Server] FAILED to load trails:`, err);
@@ -88,11 +96,34 @@ export async function createServer() {
           { role: 'user', parts: [{ text: message }] }
         ],
         config: {
-          systemInstruction: systemInstruction || "You are SummitScout, a rugged AI trail guide."
+          systemInstruction: systemInstruction || "You are SummitScout, a rugged AI trail guide.",
+          tools: [
+            {
+              functionDeclarations: [
+                {
+                  name: "searchTrails",
+                  description: "Search for specific hiking trails by keywords, location, or difficulty.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      query: {
+                        type: Type.STRING,
+                        description: "The search query (e.g., 'Pacific Northwest', 'hard', 'dog friendly')"
+                      }
+                    },
+                    required: ["query"]
+                  }
+                }
+              ]
+            }
+          ]
         }
       });
       
-      res.json({ text: response.text });
+      res.json({ 
+        text: response.text,
+        functionCalls: response.functionCalls 
+      });
     } catch (err: any) {
       console.error("[Gemini] Chat Error:", err);
       res.status(500).json({ error: "Intelligence sync failed." });
