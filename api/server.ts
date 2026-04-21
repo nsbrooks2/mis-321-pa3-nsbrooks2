@@ -40,8 +40,18 @@ export async function createServer() {
 
   const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+  // AI Core (Lazy Init)
+  let ai: GoogleGenAI | null = null;
+  const getAI = () => {
+    if (!ai) {
+      const key = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (!key) {
+        console.warn("[Server] GEMINI_API_KEY is missing from environment.");
+      }
+      ai = new GoogleGenAI({ apiKey: key || "" });
+    }
+    return ai;
+  };
 
   // Auth Middleware
   const authenticate = async (req: any, res: any, next: any) => {
@@ -71,11 +81,12 @@ export async function createServer() {
     try {
       const terrainContext = "MISSION DATA: Known trails include Skyline Divide (WA), Heliotrope Ridge (WA), Mist Trail (Yosemite, CA), Black Tusk (BC), Abiqua Falls (OR), Angels Landing (UT), and Highline Trail (Glacier, MT).";
       
-      const response = await ai.models.generateContent({
+      const genAI = getAI();
+      const response = await genAI.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
           ...(history || []),
-          { role: 'user', parts: [{ text: message }] }
+          { role: 'user', parts: [{ text: message || "" }] }
         ],
         config: {
           systemInstruction: (userInstruction || "You are Traily, a helpful scout robot.") + "\n\n" + terrainContext,
@@ -108,7 +119,10 @@ export async function createServer() {
       });
     } catch (err: any) {
       console.error("[Gemini] Chat Error:", err);
-      res.status(500).json({ error: "Intelligence sync failed." });
+      res.status(500).json({ 
+        error: "Intelligence sync failed.",
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
     }
   });
 

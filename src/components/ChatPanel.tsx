@@ -249,10 +249,12 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
 
       // Handle function calls if any
       if (data.functionCalls) {
+        console.log(`[Traily] Protocol Breach: AI requested ${data.functionCalls.length} tool activations.`);
         for (const call of data.functionCalls) {
           if (call.name === 'searchTrails' && call.args?.query) {
-            console.log(`[Traily] Automating scan for: ${call.args.query}`);
-            onSearch(call.args.query as string);
+            console.log(`[Traily] Automating scan for: "${call.args.query}"`);
+            const count = await onSearch(call.args.query as string);
+            console.log(`[Traily] Basecamp sync complete. Found ${count} routes.`);
           }
         }
       }
