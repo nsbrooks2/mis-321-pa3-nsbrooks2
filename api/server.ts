@@ -5,6 +5,7 @@ import fs from "fs";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import trailsData from "../src/data/trails.json" assert { type: "json" };
 
 dotenv.config();
 
@@ -15,27 +16,7 @@ export async function createServer() {
   const app = express();
   const PORT = 3000;
 
-  const trailsPath = path.join(process.cwd(), "src", "data", "trails.json");
-  const fallbackTrailsPath = path.join(__dirname, "..", "src", "data", "trails.json");
-  const localTrailsPath = path.join(__dirname, "data", "trails.json"); // For Vercel lambda structure if moved
-
-  console.log(`[Server] Searching trails at: ${trailsPath}`);
-  let trailsData = [];
-  try {
-    const finalPath = fs.existsSync(trailsPath) ? trailsPath : 
-                     fs.existsSync(fallbackTrailsPath) ? fallbackTrailsPath :
-                     fs.existsSync(localTrailsPath) ? localTrailsPath : null;
-
-    if (finalPath) {
-      console.log(`[Server] Found trails at: ${finalPath}`);
-      trailsData = JSON.parse(fs.readFileSync(finalPath, "utf-8"));
-      console.log(`[Server] Loaded ${trailsData.length} trails.`);
-    } else {
-      console.warn(`[Server] trails.json NOT FOUND. checked: ${trailsPath}, ${fallbackTrailsPath}, ${localTrailsPath}`);
-    }
-  } catch (err) {
-    console.error(`[Server] FAILED to load trails:`, err);
-  }
+  // trailsData is now statically imported for correct Vercel bundling
 
   app.use(express.json());
 
@@ -568,9 +549,9 @@ export async function createServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
     try {
-      const viteModule = "vite";
-      const { createServer: createViteServer } = await import(viteModule);
-      const vite = await createViteServer({
+      // Use eval + template string to completely hide this from Vercel's bundler/ncc
+      const v = await eval(`import("vite")`);
+      const vite = await v.createServer({
         server: { middlewareMode: true },
         appType: "spa",
       });
