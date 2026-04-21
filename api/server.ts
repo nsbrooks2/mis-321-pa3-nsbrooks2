@@ -3,7 +3,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenAI, Type } from "@google/genai";
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -38,9 +37,6 @@ export async function createServer() {
 
   const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
-  // Initialize Gemini
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
   // Auth Middleware
   const authenticate = async (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
@@ -62,50 +58,6 @@ export async function createServer() {
       timestamp: new Date().toISOString(),
       env: process.env.NODE_ENV
     });
-  });
-
-  app.post("/api/chat", authenticate, async (req: any, res: any) => {
-    const { history, message, systemInstruction } = req.body;
-    try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...(history || []),
-          { role: 'user', parts: [{ text: message }] }
-        ],
-        config: {
-          systemInstruction: systemInstruction || "You are SummitScout, a rugged AI trail guide.",
-          tools: [
-            {
-              functionDeclarations: [
-                {
-                  name: "searchTrails",
-                  description: "Search for specific hiking trails by keywords, location, or difficulty.",
-                  parameters: {
-                    type: Type.OBJECT,
-                    properties: {
-                      query: {
-                        type: Type.STRING,
-                        description: "The search query (e.g., 'Pacific Northwest', 'hard', 'dog friendly')"
-                      }
-                    },
-                    required: ["query"]
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      });
-      
-      res.json({ 
-        text: response.text,
-        functionCalls: response.functionCalls 
-      });
-    } catch (err: any) {
-      console.error("[Gemini] Chat Error:", err);
-      res.status(500).json({ error: "Intelligence sync failed." });
-    }
   });
 
   app.get("/api/trails", (req, res) => {

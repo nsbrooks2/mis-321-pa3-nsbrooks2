@@ -3,6 +3,7 @@ import { Send, User as UserIcon, Mountain, Plus, MessageSquare, History, Chevron
 import { motion, AnimatePresence } from 'motion/react';
 import { Message, Trail, ChatSession } from '../types';
 import { supabase } from '../lib/supabase';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface TrailyAvatarProps {
   mood?: 'neutral' | 'thinking' | 'happy' | 'alert';
@@ -101,6 +102,14 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
   const [isTyping, setIsTyping] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const aiRef = useRef<GoogleGenAI | null>(null);
+
+  useEffect(() => {
+    if (!aiRef.current) {
+      aiRef.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+    }
+  }, []);
 
   const currentSession = sessions.find(s => s.id === currentSessionId);
   const messages = currentSession?.messages || [];
@@ -218,7 +227,9 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
     setIsTyping(true);
 
     try {
-      const history = messages.map(m => ({
+      if (!aiRef.current) throw new Error("Intelligence core not initialized.");
+
+      const aiHistory = messages.map(m => ({
         role: m.role as 'user' | 'assistant',
         parts: [{ text: m.content }]
       }));
@@ -234,22 +245,44 @@ export default function ChatPanel({ onSearch, onSetTrails, onNavigateToTab, onNa
           2. ALWAYS use the 'searchTrails' tool to find relevant routes. Confirm you are searching.
           3. When a user asks for "trails", "expeditions", or "areas", trigger a basecamp sync via the tool.`;
 
-      const response = await fetchWithAuth('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: input,
-          history,
-          systemInstruction
-        })
+      const response = await aiRef.current.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...aiHistory,
+          { role: 'user', parts: [{ text: input }] }
+        ],
+        config: {
+          systemInstruction,
+          tools: [
+            {
+              functionDeclarations: [
+                {
+                  name: "searchTrails",
+                  description: "Search for specific hiking trails by keywords, location, or difficulty.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      query: {
+                        type: Type.STRING,
+                        description: "The search query (e.g., 'Pacific Northwest', 'hard', 'dog friendly')"
+                      }
+                    },
+                    required: ["query"]
+                  }
+                }
+              ]
+            }
+          ]
+        }
       });
 
-      if (!response.ok) throw new Error("Intelligence sync failed.");
-      const data = await response.json();
-      addAssistantMessage(data.text);
+      const assistantText = response.text;
+      addAssistantMessage(assistantText);
 
       // Handle function calls if any
-      if (data.functionCalls) {
-        for (const call of data.functionCalls) {
+      const functionCalls = response.functionCalls;
+      if (functionCalls) {
+        for (const call of functionCalls) {
           if (call.name === 'searchTrails' && call.args?.query) {
             console.log(`[Traily] Automating scan for: ${call.args.query}`);
             onSearch(call.args.query as string);
