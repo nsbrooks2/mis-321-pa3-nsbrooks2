@@ -1,8 +1,9 @@
-import { createServer } from '../server';
+import { createServer } from '../server.js';
 
 let cachedApp: any = null;
 
 export default async (req: any, res: any) => {
+  console.log(`[Vercel] Request received: ${req.method} ${req.url}`);
   try {
     if (!cachedApp) {
       console.log("[Vercel] Initializing new Express instance...");
