@@ -16,12 +16,16 @@ export async function createServer() {
   const app = express();
   const PORT = 3000;
 
-  const trailsPath = path.resolve(__dirname, "src/data/trails.json");
+  const trailsPath = path.join(process.cwd(), "src", "data", "trails.json");
   console.log(`[Server] Loading trails from: ${trailsPath}`);
   let trailsData = [];
   try {
-    trailsData = JSON.parse(fs.readFileSync(trailsPath, "utf-8"));
-    console.log(`[Server] Loaded ${trailsData.length} trails.`);
+    if (fs.existsSync(trailsPath)) {
+      trailsData = JSON.parse(fs.readFileSync(trailsPath, "utf-8"));
+      console.log(`[Server] Loaded ${trailsData.length} trails.`);
+    } else {
+      console.warn(`[Server] trails.json not found at ${trailsPath}, check Vercel build configuration.`);
+    }
   } catch (err) {
     console.error(`[Server] FAILED to load trails:`, err);
   }
@@ -533,7 +537,9 @@ export async function createServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
+    // ONLY serve static files if running as a standalone Node server
+    // On Vercel, static files are handled by the platform via vercel.json rewrites
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
